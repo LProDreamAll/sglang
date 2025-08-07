@@ -266,7 +266,7 @@ class SchedulerDisaggregationPrefillMixin:
 
     @torch.no_grad()
     def event_loop_normal_disagg_prefill(self: Scheduler) -> None:
-        """A normal scheduler loop for prefill worker in disaggregation mode."""
+        """A normal scheduler loop for prefill worker in disaggregation mode. # 普通预填充调度循环，适用于预填充阶段的请求处理。"""
 
         while True:
             recv_reqs = self.recv_requests()

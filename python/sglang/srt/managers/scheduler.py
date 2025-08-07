@@ -751,7 +751,7 @@ class Scheduler(
 
     @DynamicGradMode()
     def event_loop_normal(self):
-        """A normal scheduler loop."""
+        """A normal scheduler loop.#普通调度循环 """
         while True:
             recv_reqs = self.recv_requests()
             self.process_input_requests(recv_reqs)
@@ -770,7 +770,9 @@ class Scheduler(
 
     @DynamicGradMode()
     def event_loop_overlap(self):
-        """A scheduler loop that overlaps the CPU processing and GPU computation."""
+        """A scheduler loop that overlaps the CPU processing and GPU computation.
+        重叠调度循环，优化CPU和GPU的并行处理。
+        """
         self.result_queue = deque()
 
         while True:
@@ -813,7 +815,9 @@ class Scheduler(
 
     @DynamicGradMode()
     def event_loop_pp(self):
-        """A non-overlap scheduler loop for pipeline parallelism."""
+        """A non-overlap scheduler loop for pipeline parallelism.
+           流水线调度循环，适用于多GPU多节点的情况。
+        """
         mbs = [None] * self.pp_size
         last_mbs = [None] * self.pp_size
         self.running_mbs = [
@@ -2559,7 +2563,6 @@ def run_scheduler_process(
                 scheduler.event_loop_overlap_disagg_prefill()
             else:
                 scheduler.event_loop_normal_disagg_prefill()
-
         elif disaggregation_mode == DisaggregationMode.DECODE:
             if scheduler.enable_overlap:
                 scheduler.event_loop_overlap_disagg_decode()
