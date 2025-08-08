@@ -30,6 +30,7 @@ class SchedulerInputBlocker:
         self._global_unblock_barrier = PollBasedBarrier(noop=noop)
 
     def handle(self, recv_reqs: Optional[List[Any]]):
+        """流量控制、负载均衡过滤"""
         assert (recv_reqs is None) == self._noop
 
         if not self._noop:

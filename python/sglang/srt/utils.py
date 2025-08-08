@@ -1069,37 +1069,46 @@ def broadcast_pyobj(
     The `rank` here refer to the source rank on global process group (regardless
     of dist_group argument).
     """
+    # 选择GPU
     device = torch.device(
         "cuda" if torch.cuda.is_available() and not force_cpu_device else "cpu"
     )
 
     if rank == src:
+        """源进程负责序列化数据，并通过两次广播（先长度、后数据）将信息传递给其他进程。
+            空数据时仅广播长度0，避免无效通信。"""
         if len(data) == 0:
+            # 创建长度为0的张量，广播通知其他进程数据为空
             tensor_size = torch.tensor([0], dtype=torch.long, device=device)
+            # torch.distributed as dist
             dist.broadcast(tensor_size, src=src, group=dist_group)
         else:
+            # 序列化数据（Python对象→字节流）
             serialized_data = pickle.dumps(data)
             size = len(serialized_data)
-
+            # 将字节流转换为ByteTensor（设备上的张量）
             tensor_data = torch.ByteTensor(
                 np.frombuffer(serialized_data, dtype=np.uint8)
             ).to(device)
+            # 创建表示数据长度的张量
             tensor_size = torch.tensor([size], dtype=torch.long, device=device)
-
+            # 先广播数据长度，再广播实际数据
             dist.broadcast(tensor_size, src=src, group=dist_group)
             dist.broadcast(tensor_data, src=src, group=dist_group)
+        # 源进程返回数据    
         return data
     else:
+        # 接收源进程广播的“数据长度”张量
         tensor_size = torch.tensor([0], dtype=torch.long, device=device)
         dist.broadcast(tensor_size, src=src, group=dist_group)
         size = tensor_size.item()
-
+        # 情况1：数据长度为0（源进程数据为空）
         if size == 0:
             return []
-
+        # 创建空张量（大小为size），接收实际数据
         tensor_data = torch.empty(size, dtype=torch.uint8, device=device)
         dist.broadcast(tensor_data, src=src, group=dist_group)
-
+        # 将设备上的张量转换为CPU字节流，并反序列化为Python对象
         serialized_data = bytes(tensor_data.cpu().numpy())
         data = pickle.loads(serialized_data)
         return data

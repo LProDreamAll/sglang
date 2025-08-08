@@ -753,19 +753,22 @@ class Scheduler(
     def event_loop_normal(self):
         """A normal scheduler loop.#普通调度循环 """
         while True:
+            # 接受新的推理请求
             recv_reqs = self.recv_requests()
+            # 处理输入请求
             self.process_input_requests(recv_reqs)
-
+            # 调度下一个批处理任务调度下一个批处理任务
             batch = self.get_next_batch_to_run()
+            # 执行批处理任务
             self.cur_batch = batch
-
             if batch:
+                # 执行批处理请求
                 result = self.run_batch(batch)
                 self.process_batch_result(batch, result)
             else:
                 # When the server is idle, do self-check and re-init some states
                 self.self_check_during_idle()
-
+            
             self.last_batch = batch
 
     @DynamicGradMode()
@@ -952,8 +955,16 @@ class Scheduler(
         """Receive results at tp_rank = 0 and broadcast it to all other TP ranks."""
         if self.pp_rank == 0:
             if self.attn_tp_rank == 0:
+                # pp0+attn_tp_rank0 从zmq接收请求
                 recv_reqs = []
-
+                # 一次性读取批量消息
+                """ZMQ的通信范围
+                ZMQ支持进程间通信（IPC）和跨机器网络通信，具体取决于端点（endpoint）的配置：
+                进程间通信（同一机器）：端点使用IPC地址（如ipc:///tmp/scheduler_input），通过本地套接字文件实现高效通信，延迟极低。
+                跨机器通信：端点使用TCP地址（如tcp://192.168.1.100:5555），通过网络传输消息，适用于分布式集群场景。
+                总结
+                在当前代码中，ZMQ主要用于同一机器内的进程间通信（如调度器与分词器进程），通过非阻塞模式高效接收/发送请求，确保分布式系统的低延迟和高吞吐量。
+                其灵活性支持扩展至跨机器通信，只需修改端点为TCP地址即可。"""
                 while True:
                     try:
                         recv_req = self.recv_from_tokenizer.recv_pyobj(zmq.NOBLOCK)
@@ -971,6 +982,7 @@ class Scheduler(
                 recv_reqs = None
         else:
             if self.attn_tp_rank == 0:
+                # 直接接受外部请求
                 dp_offset = self.attn_dp_rank * self.attn_tp_size
                 recv_reqs = point_to_point_pyobj(
                     [],
@@ -1006,6 +1018,8 @@ class Scheduler(
                 control_reqs = None
 
             if self.attn_tp_size != 1:
+                # rank：当前进程在全局进程组中的唯一标识（例如，多GPU训练中每个GPU对应一个rank）。
+                # src：广播的源进程ID（通常为0号进程，即主进程）。
                 work_reqs = broadcast_pyobj(
                     work_reqs,
                     self.attn_tp_group.rank,
@@ -1041,6 +1055,7 @@ class Scheduler(
             # If it is a work request, accept or reject the request based on the request queue size.
             if is_work_request(recv_req):
                 if len(self.waiting_queue) + 1 > self.max_queued_requests:
+                    # 拒绝请求  
                     abort_req = AbortReq(
                         recv_req.rid,
                         finished_reason={
@@ -1051,10 +1066,12 @@ class Scheduler(
                     )
                     self.send_to_tokenizer.send_pyobj(abort_req)
                     continue
+            #处理请求    
             output = self._request_dispatcher(recv_req)
             if output is not None:
                 if isinstance(output, RpcReqOutput):
                     if self.recv_from_rpc is not None:
+                        #todo 处理rpc请求
                         self.recv_from_rpc.send_pyobj(output)
                 else:
                     self.send_to_tokenizer.send_pyobj(output)
