@@ -7,50 +7,81 @@ edition = "2021"
 name = "sglang_router_rs"
 # Pure Rust library: Just omit crate-type (defaults to rlib)
 # Python/C binding + Rust library: Use ["cdylib", "rlib"]
+# cdylib: 生成动态链接库给python使用，rlib: 生成Rust静态库给其他Rust项目使用
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+# 基于 Tokio 的 Web 框架，用于构建 HTTP 服务
+# macros: 提供路由宏
+# ws: WebSocket 支持
+# tracing: 集成日志追踪
+# tower & tower-http: HTTP 中间件生态，提供压缩、CORS、超时控制等功能
 axum = { version = "0.8.4", features = ["macros", "ws", "tracing"] }
 tower = { version = "0.5", features = ["full"] }
 tower-http = { version = "0.6", features = ["trace", "compression-gzip", "cors", "timeout", "limit", "request-id", "util"] }
+#  数据序列化/反序列化，支持 derive 宏自动生成代码
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+# 高效字节处理，用于 HTTP 请求/响应体
 bytes = "1.8.0"
 rand = "0.8.5"
+# reqwest: HTTP 客户端，支持流式请求、阻塞模式和 JSON 解析
 reqwest = { version = "0.12.8", features = ["stream", "blocking", "json"] }
+# futures 系列: 异步编程基础工具
 futures-util = "0.3"
 futures = "0.3"
+# pyo3: Rust 与 Python 互操作库
+# extension-module: 生成 Python 扩展模块（配合 cdylib）
 pyo3 = { version = "0.22.5", features = ["extension-module"] }
+# dashmap: 并发哈希表，用于多线程安全数据访问
 dashmap = "6.1.0"
+# http: HTTP 协议基础类型定义
 http = "1.1.0"
+# tokio: 异步运行时，full 特性启用所有功能
 tokio = { version = "1.42.0", features = ["full"] }
+# 允许为 trait 定义异步方法
 async-trait = "0.1"
+# once_cell: 延迟初始化工具，用于单例模式
 once_cell = "1.21"
+# tracing 系列: 结构化日志系统，支持 JSON 输出和时间戳
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "chrono"] }
 tracing-log = "0.2"
 tracing-appender = "0.2.3"
+# chrono: 时间处理库，提供精确时间戳
 chrono = "0.4"
 kube = { version = "0.88.1", features = ["runtime", "derive"] }
 k8s-openapi = { version = "0.21.0", features = ["v1_29"] }
 metrics = "0.24.2"
 metrics-exporter-prometheus = "0.17.0"
 uuid = { version = "1.10", features = ["v4", "serde"] }
+# 错误处理与工具 thiserror: 错误类型定义宏，生成符合 Rust 最佳实践的错误类型
 thiserror = "2.0.12"
+# URL 解析和处理
 url = "2.5.4"
 tokio-stream = { version = "0.1", features = ["sync"] }
 
+# 开发依赖
 [dev-dependencies]
+# criterion: 性能基准测试工具，生成 HTML 报告
 criterion = { version = "0.5", features = ["html_reports"] }
+# Tower 是 Rust 的模块化中间件库，专注于构建健壮、可组合的异步服务和客户端。它提供了一套通用接口（如 Service trait）和组件，用于处理请求/响应流、超时控制、重试逻辑、负载均衡等常见网络编程需求。
+# 在 sglang-router 项目中，Tower 主要与 Axum Web 框架配合使用，为 HTTP 服务提供中间件支持（如路由分发、请求处理链管理等）。
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
+# portpicker: 测试时自动分配可用端口
 portpicker = "0.1"
 
+
+# 基准测试配置
 [[bench]]
 name = "request_processing"
 harness = false
+#  benches/request_processing.rs
 path = "benches/request_processing.rs"
-
+# 发布构建优化
 [profile.release]
+# lto = "thin": 启用 Thin LTO 链接时优化，减小二进制体积并提升性能
 lto = "thin"
+# codegen-units = 1: 单代码生成单元，优化跨模块优化
 codegen-units = 1
