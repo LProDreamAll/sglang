@@ -1,13 +1,14 @@
 use std::path::PathBuf;
+use time::{format_description, UtcOffset};
+
 use tracing::Level;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
 use tracing_log::LogTracer;
-use tracing_subscriber::fmt::time::ChronoUtc;
+use tracing_subscriber::fmt::time::OffsetTime;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{EnvFilter, Layer};
-
 /// Configuration for the logging system
 #[derive(Debug, Clone)]
 pub struct LoggingConfig {
@@ -96,15 +97,16 @@ pub fn init_logging(config: LoggingConfig) -> LogGuard {
     let mut layers = Vec::new();
 
     // Standard timestamp format: YYYY-MM-DD HH:MM:SS
-    let time_format = "%Y-%m-%d %H:%M:%S".to_string();
-
+    let time_format = format_description::parse("[year]-[month]-[day] [hour]:[minute]:[second]")
+        .expect("Failed to parse time format");
+    let shanghai_offset = UtcOffset::from_hms(8, 0, 0)
+        .expect("Invalid timezone offset");
     // Configure the console stdout layer
     let stdout_layer = tracing_subscriber::fmt::layer()
         .with_ansi(config.colorize)
         .with_file(true)
         .with_line_number(true)
-        .with_timer(ChronoUtc::new(time_format.clone()));
-
+        .with_timer(OffsetTime::new(shanghai_offset, time_format));
     let stdout_layer = if config.json_format {
         stdout_layer.json().flatten_event(true).boxed()
     } else {
@@ -132,14 +134,14 @@ pub fn init_logging(config: LoggingConfig) -> LogGuard {
 
         let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
         file_guard = Some(guard);
-
+        let file_time_format = format_description::parse("[year]-[month]-[day] [hour]:[minute]:[second]")
+            .expect("Failed to parse time format");
         let file_layer = tracing_subscriber::fmt::layer()
             .with_ansi(false) // Never use ANSI colors in log files
             .with_file(true)
             .with_line_number(true)
-            .with_timer(ChronoUtc::new(time_format))
+            .with_timer(OffsetTime::new(shanghai_offset, file_time_format)) // Use original here
             .with_writer(non_blocking);
-
         let file_layer = if config.json_format {
             file_layer.json().flatten_event(true).boxed()
         } else {

@@ -9,7 +9,9 @@ name = "sglang_router_rs"
 # Python/C binding + Rust library: Use ["cdylib", "rlib"]
 # cdylib: 生成动态链接库给python使用，rlib: 生成Rust静态库给其他Rust项目使用
 crate-type = ["cdylib", "rlib"]
-
+[[bin]]
+name = "sglang-router"
+path = "src/main.rs"
 [dependencies]
 # 基于 Tokio 的 Web 框架，用于构建 HTTP 服务
 # macros: 提供路由宏
@@ -45,7 +47,7 @@ async-trait = "0.1"
 once_cell = "1.21"
 # tracing 系列: 结构化日志系统，支持 JSON 输出和时间戳
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "chrono"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "chrono", "local-time"] }
 tracing-log = "0.2"
 tracing-appender = "0.2.3"
 # chrono: 时间处理库，提供精确时间戳
@@ -60,6 +62,9 @@ thiserror = "2.0.12"
 # URL 解析和处理
 url = "2.5.4"
 tokio-stream = { version = "0.1", features = ["sync"] }
+clap = { version = "4.5.45", features = ["derive"] }
+time = { version = "0.3", features = ["local-offset", "formatting"] }
+
 
 # 开发依赖
 [dev-dependencies]
@@ -73,7 +78,7 @@ http-body-util = "0.1"
 portpicker = "0.1"
 
 
-# 基准测试配置
+# 基准测试配置p
 [[bench]]
 name = "request_processing"
 harness = false
