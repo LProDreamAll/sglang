@@ -385,6 +385,7 @@ impl Router {
         while total_retries < max_total_retries {
             // Extract routing text directly from typed request
             let text = typed_req.extract_text_for_routing();
+            debug!("route_typed_request text:{:?} route:{:?}", text, route);
             let is_stream = typed_req.is_stream();
 
             // Select worker based on text
@@ -447,13 +448,20 @@ impl Router {
 
                 request_retries += 1;
                 total_retries += 1;
-
+                //todo 这里不想直接删除，只是想把当前worker制成不健康
                 if request_retries == max_request_retries {
                     warn!(
                         "Removing failed worker after typed request failures worker_url={}",
                         worker_url
                     );
-                    self.remove_worker(&worker_url);
+                    warn!("real Removing  worker_url={}", worker_url);
+                    if let Ok(workers_guard) = self.workers.read() {
+                        if let Some(worker) = workers_guard.iter().find(|w| w.url() == &worker_url) {
+                            worker.set_healthy(false);
+                            warn!("Not Removing and Marking worker as unhealthy: {}", worker_url);
+                        }
+                    }
+                    // self.remove_worker(&worker_url);
                     break;
                 }
             }
@@ -481,6 +489,11 @@ impl Router {
     }
 
     // TODO (rui): Better accommodate to the Worker abstraction
+    /// 这个方法在 send_typed_request 函数中被使用，用于支持数据并行（data parallelism）场景。当 dp_aware 标志为 true 时，系统需要：
+    // 从 worker URL 中提取数据并行等级
+    // 将这个等级作为 data_parallel_rank 字段插入到请求体中
+    // 然后发送修改后的请求到 worker
+    // 这种设计允许路由器在数据并行环境中正确地将请求路由到特定的 worker 实例，并告知该实例它应该处理哪个数据分片。
     fn extract_dp_rank(worker_url: &str) -> Result<(&str, usize), String> {
         let parts: Vec<&str> = worker_url.split('@').collect();
         if parts.len() != 2 {
@@ -498,6 +511,38 @@ impl Router {
     }
 
     // Send typed request directly without conversion
+    ///发送类型化请求：
+    // 接收一个实现了 serde::Serialize trait 的泛型参数 typed_req
+    // 将这个请求发送到指定的 worker 节点
+    // 处理数据并行(DP)感知：
+    // 如果启用了 dp_aware 模式，会从 worker URL 中提取数据并行等级(dp_rank)
+    // 将 data_parallel_rank 字段添加到请求体中
+    // 构建 HTTP 请求：
+    // 使用 reqwest 客户端构建 POST 请求
+    // 将请求体序列化为 JSON 格式
+    // 复制原始请求的 headers（除了 Content-Type 和 Content-Length）
+    // 发送请求并处理响应：
+    // 发送请求到目标 worker
+    // 处理成功和失败的情况
+    // 处理流式和非流式响应：
+    // 对于非流式请求：直接获取完整响应体
+    // 对于流式请求：使用异步流处理响应数据
+    // 负载管理：
+    // 如果之前增加了负载计数，在适当的时候减少它
+    // 对于流式请求，会在检测到结束标记时减少负载
+    // 错误处理和重试：
+    // 处理网络错误并减少负载计数
+    // 记录错误日志
+    // 指标收集：
+    // 记录请求持续时间
+    // 更新相关指标
+    // 关键特性
+    // 泛型设计：可以处理任何实现了 serde::Serialize 的类型
+    // 数据并行支持：在分布式环境中支持数据并行处理
+    // 流式处理：专门处理流式响应，检测结束标记
+    // 负载跟踪：管理请求的负载计数，确保准确的负载均衡
+    // 错误恢复：在出错时正确清理资源
+    // 这个方法是整个路由系统的核心，负责实际将客户端请求转发到合适的 worker 节点并返回响应。
     async fn send_typed_request<T: serde::Serialize>(
         &self,
         headers: Option<&HeaderMap>,
@@ -719,10 +764,10 @@ impl Router {
     pub async fn add_worker(&self, worker_url: &str) -> Result<String, String> {
         let start_time = std::time::Instant::now();
         let client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(self.timeout_secs))
+            // .timeout(Duration::from_secs(self.timeout_secs))
+            .timeout(Duration::from_secs(3))
             .build()
             .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
-
         loop {
             if start_time.elapsed() > Duration::from_secs(self.timeout_secs) {
                 error!(
@@ -1095,6 +1140,7 @@ impl RouterTrait for Router {
         headers: Option<&HeaderMap>,
         body: &CompletionRequest,
     ) -> Response {
+        debug!("route_completion first url ");
         self.route_typed_request(headers, body, "/v1/completions")
             .await
     }
@@ -1262,6 +1308,7 @@ mod tests {
         let result =
             Router::wait_for_healthy_workers(&["http://nonexistent:8080".to_string()], 1, 1);
         assert!(result.is_err());
+        println!("1111 {}", result.clone().unwrap_err());
         assert!(result.unwrap_err().contains("Timeout"));
     }
 }

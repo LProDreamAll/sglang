@@ -218,7 +218,11 @@ impl LoadBalancingPolicy for CacheAwarePolicy {
             // Increment processed counter
             workers[selected_idx].increment_processed();
             RouterMetrics::record_processed_request(&selected_url);
-
+            //打印请求的url+port ，请求内容，
+            debug!(
+                "Cache-aware routing | selected: {} | text:{}",
+                selected_url, text
+            );
             return Some(selected_idx);
         }
 

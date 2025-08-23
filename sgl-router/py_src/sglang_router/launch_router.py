@@ -508,14 +508,15 @@ def launch_router(args: argparse.Namespace) -> Optional[Router]:
                 )
 
         # Create router with unified constructor
+        # router_args.worker_urls.append("http://119.255.238.64:8002")
         router = Router(
             worker_urls=(
                 []
                 if router_args.service_discovery or router_args.pd_disaggregation
                 else router_args.worker_urls
             ),
-            host=router_args.host,
-            port=router_args.port,
+            host="0.0.0.0",
+            port=8888,
             policy=policy_from_str(router_args.policy),
             worker_startup_timeout_secs=router_args.worker_startup_timeout_secs,
             worker_startup_check_interval=router_args.worker_startup_check_interval,
@@ -528,7 +529,8 @@ def launch_router(args: argparse.Namespace) -> Optional[Router]:
             dp_aware=router_args.dp_aware,
             api_key=router_args.api_key,
             log_dir=router_args.log_dir,
-            log_level=router_args.log_level,
+            # log_level=router_args.log_level,
+            log_level='debug',
             service_discovery=router_args.service_discovery,
             selector=router_args.selector,
             service_discovery_port=router_args.service_discovery_port,

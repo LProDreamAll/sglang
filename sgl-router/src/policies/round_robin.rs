@@ -3,7 +3,7 @@
 use super::{get_healthy_worker_indices, LoadBalancingPolicy};
 use crate::core::Worker;
 use std::sync::atomic::{AtomicUsize, Ordering};
-
+use  tracing::debug;
 /// Round-robin selection policy
 ///
 /// Selects workers in sequential order, cycling through all healthy workers.
@@ -35,7 +35,12 @@ impl LoadBalancingPolicy for RoundRobinPolicy {
         // Get and increment counter atomically
         let count = self.counter.fetch_add(1, Ordering::Relaxed);
         let selected_idx = count % healthy_indices.len();
-
+        debug!(
+                "Round Robin |  worker {:?} | _request_text {:?}",
+            workers[healthy_indices[selected_idx]]
+                .url(),
+            _request_text.unwrap_or(""),
+            );
         Some(healthy_indices[selected_idx])
     }
 

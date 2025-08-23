@@ -242,6 +242,7 @@ impl Worker for BasicWorker {
         self.healthy.store(healthy, Ordering::Release);
     }
 
+    //健康检测异步
     async fn check_health_async(&self) -> WorkerResult<()> {
         use std::time::Duration;
 
@@ -254,6 +255,7 @@ impl Worker for BasicWorker {
         match WORKER_CLIENT.get(&health_url).timeout(timeout).send().await {
             Ok(response) => {
                 if response.status().is_success() {
+                    //设置worker的不健康状态
                     self.set_healthy(true);
                     Ok(())
                 } else {
